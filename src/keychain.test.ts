@@ -498,11 +498,105 @@ describe("updateCredentialBlob", () => {
   })
 })
 
+describe("CLAUDE_CONFIG_DIR support", () => {
+  it("writeBackCredentials uses $CLAUDE_CONFIG_DIR when set", async () => {
+    const originalConfigDir = process.env.CLAUDE_CONFIG_DIR
+    const tempDir = await mkdtemp(
+      join(tmpdir(), "opencode-claude-auth-configdir-"),
+    )
+    process.env.CLAUDE_CONFIG_DIR = tempDir
+
+    try {
+      const credPath = join(tempDir, ".credentials.json")
+      writeFileSync(
+        credPath,
+        JSON.stringify({
+          claudeAiOauth: {
+            accessToken: "old-at",
+            refreshToken: "old-rt",
+            expiresAt: 1000,
+            subscriptionType: "pro",
+          },
+        }),
+        { encoding: "utf-8", mode: 0o600 },
+      )
+
+      const result = writeBackCredentials("file", {
+        accessToken: "new-at",
+        refreshToken: "new-rt",
+        expiresAt: 2000,
+      })
+
+      assert.equal(result, true)
+      const written = JSON.parse(readFileSync(credPath, "utf-8"))
+      assert.equal(written.claudeAiOauth.accessToken, "new-at")
+      assert.equal(written.claudeAiOauth.refreshToken, "new-rt")
+      assert.equal(written.claudeAiOauth.expiresAt, 2000)
+    } finally {
+      if (typeof originalConfigDir === "string") {
+        process.env.CLAUDE_CONFIG_DIR = originalConfigDir
+      } else {
+        delete process.env.CLAUDE_CONFIG_DIR
+      }
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  it("writeBackCredentials falls back to ~/.claude when CLAUDE_CONFIG_DIR is unset", async () => {
+    const originalHome = process.env.HOME
+    const originalConfigDir = process.env.CLAUDE_CONFIG_DIR
+    const tempHome = await mkdtemp(
+      join(tmpdir(), "opencode-claude-auth-configdir-fallback-"),
+    )
+    process.env.HOME = tempHome
+    delete process.env.CLAUDE_CONFIG_DIR
+
+    try {
+      const claudeDir = join(tempHome, ".claude")
+      mkdirSync(claudeDir, { recursive: true })
+      const credPath = join(claudeDir, ".credentials.json")
+      writeFileSync(
+        credPath,
+        JSON.stringify({
+          accessToken: "old-at",
+          refreshToken: "old-rt",
+          expiresAt: 1000,
+        }),
+        { encoding: "utf-8", mode: 0o600 },
+      )
+
+      const result = writeBackCredentials("file", {
+        accessToken: "new-at",
+        refreshToken: "new-rt",
+        expiresAt: 2000,
+      })
+
+      assert.equal(result, true)
+      const written = JSON.parse(readFileSync(credPath, "utf-8"))
+      assert.equal(written.accessToken, "new-at")
+    } finally {
+      if (typeof originalHome === "string") {
+        process.env.HOME = originalHome
+      } else {
+        delete process.env.HOME
+      }
+      if (typeof originalConfigDir === "string") {
+        process.env.CLAUDE_CONFIG_DIR = originalConfigDir
+      } else {
+        delete process.env.CLAUDE_CONFIG_DIR
+      }
+      rmSync(tempHome, { recursive: true, force: true })
+    }
+  })
+})
+
 describe("writeBackCredentials (file source)", () => {
   it("reads, updates, and writes back credentials to file", async () => {
     const originalHome = process.env.HOME
+    const originalConfigDir = process.env.CLAUDE_CONFIG_DIR
     const tempHome = await mkdtemp(join(tmpdir(), "opencode-claude-auth-wb-"))
     process.env.HOME = tempHome
+    delete process.env.CLAUDE_CONFIG_DIR
 
     try {
       const claudeDir = join(tempHome, ".claude")
@@ -543,6 +637,11 @@ describe("writeBackCredentials (file source)", () => {
       } else {
         delete process.env.HOME
       }
+      if (typeof originalConfigDir === "string") {
+        process.env.CLAUDE_CONFIG_DIR = originalConfigDir
+      } else {
+        delete process.env.CLAUDE_CONFIG_DIR
+      }
       rmSync(tempHome, { recursive: true, force: true })
     }
   })
@@ -551,10 +650,12 @@ describe("writeBackCredentials (file source)", () => {
     if (process.platform === "win32") return
 
     const originalHome = process.env.HOME
+    const originalConfigDir = process.env.CLAUDE_CONFIG_DIR
     const tempHome = await mkdtemp(
       join(tmpdir(), "opencode-claude-auth-wb-perms-"),
     )
     process.env.HOME = tempHome
+    delete process.env.CLAUDE_CONFIG_DIR
 
     try {
       const claudeDir = join(tempHome, ".claude")
@@ -581,16 +682,23 @@ describe("writeBackCredentials (file source)", () => {
       } else {
         delete process.env.HOME
       }
+      if (typeof originalConfigDir === "string") {
+        process.env.CLAUDE_CONFIG_DIR = originalConfigDir
+      } else {
+        delete process.env.CLAUDE_CONFIG_DIR
+      }
       rmSync(tempHome, { recursive: true, force: true })
     }
   })
 
   it("returns false when credentials file does not exist", async () => {
     const originalHome = process.env.HOME
+    const originalConfigDir = process.env.CLAUDE_CONFIG_DIR
     const tempHome = await mkdtemp(
       join(tmpdir(), "opencode-claude-auth-wb-missing-"),
     )
     process.env.HOME = tempHome
+    delete process.env.CLAUDE_CONFIG_DIR
 
     try {
       const result = writeBackCredentials("file", {
@@ -605,16 +713,23 @@ describe("writeBackCredentials (file source)", () => {
       } else {
         delete process.env.HOME
       }
+      if (typeof originalConfigDir === "string") {
+        process.env.CLAUDE_CONFIG_DIR = originalConfigDir
+      } else {
+        delete process.env.CLAUDE_CONFIG_DIR
+      }
       rmSync(tempHome, { recursive: true, force: true })
     }
   })
 
   it("returns false when credentials file contains invalid JSON", async () => {
     const originalHome = process.env.HOME
+    const originalConfigDir = process.env.CLAUDE_CONFIG_DIR
     const tempHome = await mkdtemp(
       join(tmpdir(), "opencode-claude-auth-wb-invalid-"),
     )
     process.env.HOME = tempHome
+    delete process.env.CLAUDE_CONFIG_DIR
 
     try {
       const claudeDir = join(tempHome, ".claude")
@@ -632,6 +747,11 @@ describe("writeBackCredentials (file source)", () => {
         process.env.HOME = originalHome
       } else {
         delete process.env.HOME
+      }
+      if (typeof originalConfigDir === "string") {
+        process.env.CLAUDE_CONFIG_DIR = originalConfigDir
+      } else {
+        delete process.env.CLAUDE_CONFIG_DIR
       }
       rmSync(tempHome, { recursive: true, force: true })
     }

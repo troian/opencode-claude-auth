@@ -1,7 +1,13 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 import { refreshViaOAuth, parseOAuthResponse } from "./credentials.ts"
-import { chmodSync, mkdirSync, statSync, writeFileSync } from "node:fs"
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
 import { mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -374,10 +380,12 @@ describe("syncAuthJson file permissions", () => {
     if (process.platform === "win32") return // Windows doesn't support Unix permissions
 
     const originalHome = process.env.HOME
+    const originalXdg = process.env.XDG_DATA_HOME
     const tempHome = await mkdtemp(
       join(tmpdir(), "opencode-claude-auth-perms-"),
     )
     process.env.HOME = tempHome
+    delete process.env.XDG_DATA_HOME
 
     try {
       const tempDir = await mkdtemp(
@@ -443,6 +451,11 @@ export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account
       } else {
         delete process.env.HOME
       }
+      if (typeof originalXdg === "string") {
+        process.env.XDG_DATA_HOME = originalXdg
+      } else {
+        delete process.env.XDG_DATA_HOME
+      }
     }
   })
 
@@ -450,10 +463,12 @@ export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account
     if (process.platform === "win32") return
 
     const originalHome = process.env.HOME
+    const originalXdg = process.env.XDG_DATA_HOME
     const tempHome = await mkdtemp(
       join(tmpdir(), "opencode-claude-auth-perms2-"),
     )
     process.env.HOME = tempHome
+    delete process.env.XDG_DATA_HOME
 
     try {
       // Create auth.json with permissive mode first
@@ -519,6 +534,128 @@ export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account
         process.env.HOME = originalHome
       } else {
         delete process.env.HOME
+      }
+      if (typeof originalXdg === "string") {
+        process.env.XDG_DATA_HOME = originalXdg
+      } else {
+        delete process.env.XDG_DATA_HOME
+      }
+    }
+  })
+})
+
+describe("XDG_DATA_HOME support", () => {
+  it("saveAccountSource writes to $XDG_DATA_HOME/opencode/ when set", async () => {
+    const originalXdg = process.env.XDG_DATA_HOME
+    const tempDir = await mkdtemp(join(tmpdir(), "opencode-claude-auth-xdg-"))
+    process.env.XDG_DATA_HOME = tempDir
+
+    try {
+      const mod = await import(
+        pathToFileURL(new URL("./credentials.ts", import.meta.url).pathname)
+          .href + `?xdg-save-${Date.now()}`
+      )
+      mod.saveAccountSource("Claude Code-credentials-abc123")
+
+      const expected = join(tempDir, "opencode", "claude-account-source.txt")
+      const content = readFileSync(expected, "utf-8").trim()
+      assert.equal(content, "Claude Code-credentials-abc123")
+    } finally {
+      if (typeof originalXdg === "string") {
+        process.env.XDG_DATA_HOME = originalXdg
+      } else {
+        delete process.env.XDG_DATA_HOME
+      }
+    }
+  })
+
+  it("loadPersistedAccountSource reads from $XDG_DATA_HOME/opencode/ when set", async () => {
+    const originalXdg = process.env.XDG_DATA_HOME
+    const tempDir = await mkdtemp(join(tmpdir(), "opencode-claude-auth-xdg-"))
+    process.env.XDG_DATA_HOME = tempDir
+
+    try {
+      const stateDir = join(tempDir, "opencode")
+      mkdirSync(stateDir, { recursive: true })
+      writeFileSync(
+        join(stateDir, "claude-account-source.txt"),
+        "Claude Code-credentials-def456",
+        "utf-8",
+      )
+
+      const mod = await import(
+        pathToFileURL(new URL("./credentials.ts", import.meta.url).pathname)
+          .href + `?xdg-load-${Date.now()}`
+      )
+      const result = mod.loadPersistedAccountSource()
+      assert.equal(result, "Claude Code-credentials-def456")
+    } finally {
+      if (typeof originalXdg === "string") {
+        process.env.XDG_DATA_HOME = originalXdg
+      } else {
+        delete process.env.XDG_DATA_HOME
+      }
+    }
+  })
+
+  it("syncAuthJson writes to $XDG_DATA_HOME/opencode/auth.json when set", async () => {
+    const originalXdg = process.env.XDG_DATA_HOME
+    const tempDir = await mkdtemp(join(tmpdir(), "opencode-claude-auth-xdg-"))
+    process.env.XDG_DATA_HOME = tempDir
+
+    try {
+      const tempModDir = await mkdtemp(
+        join(tmpdir(), "opencode-claude-auth-sync-xdg-"),
+      )
+      const tempCredentials = join(tempModDir, "credentials.ts")
+      const tempKeychain = join(tempModDir, "keychain.ts")
+      const tempBetas = join(tempModDir, "betas.ts")
+      const tempLogger = join(tempModDir, "logger.ts")
+      const sourceCredentials = await readFile(
+        new URL("./credentials.ts", import.meta.url),
+        "utf8",
+      )
+      const rewritten = sourceCredentials.replace(
+        /from\s+["']\.\/(\w+)\.js["']/g,
+        'from "./$1.ts"',
+      )
+
+      await writeFile(
+        tempKeychain,
+        `export function readAllClaudeAccounts() { return [] }
+export function refreshAccount() { return null }
+export function writeBackCredentials() { return true }
+export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account \${i + 1}\`) }`,
+        "utf8",
+      )
+      await writeFile(
+        tempBetas,
+        `export function resetExcludedBetas() {}\n`,
+        "utf8",
+      )
+      await writeFile(
+        tempLogger,
+        `export function log() {}\nexport function initLogger() {}\nexport function closeLogger() {}\n`,
+        "utf8",
+      )
+      await writeFile(tempCredentials, rewritten, "utf8")
+
+      const mod = await import(pathToFileURL(tempCredentials).href)
+      mod.syncAuthJson({
+        accessToken: "tok",
+        refreshToken: "ref",
+        expiresAt: Date.now() + 600_000,
+      })
+
+      const authPath = join(tempDir, "opencode", "auth.json")
+      const written = JSON.parse(readFileSync(authPath, "utf-8"))
+      assert.equal(written.anthropic.type, "oauth")
+      assert.equal(written.anthropic.access, "tok")
+    } finally {
+      if (typeof originalXdg === "string") {
+        process.env.XDG_DATA_HOME = originalXdg
+      } else {
+        delete process.env.XDG_DATA_HOME
       }
     }
   })

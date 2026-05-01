@@ -12,7 +12,9 @@ let logFilePath: string | null = null
 let logStream: Writable | null = null
 
 function getDefaultLogPath(): string {
-  return join(homedir(), ".local", "share", "opencode", "claude-auth-debug.log")
+  const dataHome =
+    process.env.XDG_DATA_HOME || join(homedir(), ".local", "share")
+  return join(dataHome, "opencode", "claude-auth-debug.log")
 }
 
 export function initLogger(options?: { stream?: Writable }): void {

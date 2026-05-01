@@ -80,7 +80,7 @@ Just run OpenCode. The plugin handles auth automatically — it reads your Claud
 The plugin checks these in order:
 
 1. macOS Keychain (all `Claude Code-credentials*` entries — multiple accounts are detected automatically)
-2. `~/.claude/.credentials.json` (fallback, works on all platforms)
+2. `~/.claude/.credentials.json` (fallback, works on all platforms; respects `CLAUDE_CONFIG_DIR` if set)
 
 ## Multiple accounts (macOS)
 
@@ -95,6 +95,20 @@ opencode auth login
 Select "Switch Claude Code account" and pick the account you want to use. Your selection is persisted across sessions.
 
 If only one account is found, the switcher is hidden and the plugin uses it directly.
+
+### Parallel instances with different accounts
+
+To run multiple OpenCode instances simultaneously, each using a different Claude account, set `XDG_DATA_HOME` per instance so each persists its account selection independently:
+
+```bash
+# Work instance
+XDG_DATA_HOME=~/.local/work opencode
+
+# Personal instance (parallel, different account)
+XDG_DATA_HOME=~/.local/personal CLAUDE_CONFIG_DIR=~/.claude/personal opencode
+```
+
+Each instance writes its `claude-account-source.txt` and `auth.json` to its own data directory, avoiding conflicts. The plugin matches OpenCode's own XDG-based path resolution.
 
 ## Troubleshooting
 
@@ -188,6 +202,8 @@ All configurable parameters can be overridden via environment variables. If Anth
 | `ANTHROPIC_ENABLE_1M_CONTEXT`       | Enable 1M token context window for 4.6+ models (requires Max subscription)                                                                                                             | `false`                                                                                                 |
 | `CLAUDE_AUTH_DEBUG`                 | Enable diagnostic logging (`1` for default path, or a custom file path)                                                                                                                | disabled                                                                                                |
 | `OPENCODE_CLAUDE_AUTH_MAX_RETRY_MS` | Max ms the plugin waits when honouring a 429/529 `retry-after` header. Beyond this cap the response surfaces immediately so OpenCode doesn't appear to hang on hour-long quota resets. | `30000`                                                                                                 |
+| `XDG_DATA_HOME`                     | Base directory for plugin data files (account source, auth.json, debug log). Matches OpenCode's own XDG resolution                                                                     | `~/.local/share`                                                                                        |
+| `CLAUDE_CONFIG_DIR`                 | Directory for Claude Code credentials file fallback. Matches Claude Code's own config directory resolution                                                                             | `~/.claude`                                                                                             |
 
 Example:
 

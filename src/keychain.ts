@@ -175,7 +175,9 @@ function listClaudeKeychainServices(): string[] {
 
 function readCredentialsFile(): ClaudeCredentials | null {
   try {
-    const credPath = join(homedir(), ".claude", ".credentials.json")
+    const claudeDir =
+      process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude")
+    const credPath = join(claudeDir, ".credentials.json")
     const raw = readFileSync(credPath, "utf-8")
     const creds = parseCredentials(raw)
     log("credentials_file_read", { success: creds !== null })
@@ -295,7 +297,9 @@ export function writeBackCredentials(
 
   if (source === "file") {
     try {
-      const credPath = join(homedir(), ".claude", ".credentials.json")
+      const claudeDir =
+        process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude")
+      const credPath = join(claudeDir, ".credentials.json")
       const raw = readFileSync(credPath, "utf-8")
       const updated = updateCredentialBlob(raw, newCreds)
       if (!updated) return false

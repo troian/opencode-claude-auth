@@ -649,8 +649,10 @@ export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account
   it("system transform does not inject when system already contains prefix", async () => {
     const originalSetInterval = globalThis.setInterval
     const originalHome = process.env.HOME
+    const originalXdg = process.env.XDG_DATA_HOME
     const tempHome = await mkdtemp(join(tmpdir(), "opencode-claude-auth-home-"))
     process.env.HOME = tempHome
+    delete process.env.XDG_DATA_HOME
     globalThis.setInterval = (() => ({
       unref() {},
     })) as unknown as typeof setInterval
@@ -681,14 +683,21 @@ export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account
       } else {
         delete process.env.HOME
       }
+      if (typeof originalXdg === "string") {
+        process.env.XDG_DATA_HOME = originalXdg
+      } else {
+        delete process.env.XDG_DATA_HOME
+      }
     }
   })
 
   it("system transform injects prefix at most once when already present", async () => {
     const originalSetInterval = globalThis.setInterval
     const originalHome = process.env.HOME
+    const originalXdg = process.env.XDG_DATA_HOME
     const tempHome = await mkdtemp(join(tmpdir(), "opencode-claude-auth-home-"))
     process.env.HOME = tempHome
+    delete process.env.XDG_DATA_HOME
     globalThis.setInterval = (() => ({
       unref() {},
     })) as unknown as typeof setInterval
@@ -720,14 +729,21 @@ export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account
       } else {
         delete process.env.HOME
       }
+      if (typeof originalXdg === "string") {
+        process.env.XDG_DATA_HOME = originalXdg
+      } else {
+        delete process.env.XDG_DATA_HOME
+      }
     }
   })
 
   it("plugin calls unref on the sync interval timer", async () => {
     const originalSetInterval = globalThis.setInterval
     const originalHome = process.env.HOME
+    const originalXdg = process.env.XDG_DATA_HOME
     const tempHome = await mkdtemp(join(tmpdir(), "opencode-claude-auth-home-"))
     process.env.HOME = tempHome
+    delete process.env.XDG_DATA_HOME
 
     let unrefCalled = false
     const fakeTimer = {
@@ -750,6 +766,11 @@ export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account
       } else {
         delete process.env.HOME
       }
+      if (typeof originalXdg === "string") {
+        process.env.XDG_DATA_HOME = originalXdg
+      } else {
+        delete process.env.XDG_DATA_HOME
+      }
     }
   })
 
@@ -757,9 +778,11 @@ export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account
     const originalNow = Date.now
     const originalSetInterval = globalThis.setInterval
     const originalHome = process.env.HOME
+    const originalXdg = process.env.XDG_DATA_HOME
     const originalFetch = globalThis.fetch
     const tempHome = await mkdtemp(join(tmpdir(), "opencode-claude-auth-home-"))
     process.env.HOME = tempHome
+    delete process.env.XDG_DATA_HOME
     Date.now = () => 1_700_000_000_000
     globalThis.setInterval = (() => ({
       unref() {},
@@ -804,6 +827,11 @@ export function buildAccountLabels(creds) { return creds.map((_, i) => \`Account
         process.env.HOME = originalHome
       } else {
         delete process.env.HOME
+      }
+      if (typeof originalXdg === "string") {
+        process.env.XDG_DATA_HOME = originalXdg
+      } else {
+        delete process.env.XDG_DATA_HOME
       }
     }
   })
